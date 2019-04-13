@@ -1,4 +1,5 @@
-<?php
+#!/usr/bin/env php
+<?
 
 $inputs = [];
 while (($item = fgets(STDIN)) !== false) {

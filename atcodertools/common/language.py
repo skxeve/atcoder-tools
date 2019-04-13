@@ -80,7 +80,7 @@ PHP7 = Language(
     name="php7",
     display_name="PHP7",
     extension="php",
-    submission_lang_pattern=re.compile(".*Php3.*"),
+    submission_lang_pattern=re.compile(".*PHP7.*"),
     default_code_generator=php.main,
     default_template_path=get_default_template_path('php'),
 )
