@@ -44,7 +44,7 @@ class Php3CodeGenerator:
         lines = []
         for pattern in self._format.sequence:
             lines += self._render_pattern(pattern)
-        return "\n{indent}".format(indent=self._indent(1)).join(lines)
+        return "\n{indent}".format(indent=self._indent(0)).join(lines)
 
     def _convert_type(self, type_: Type) -> str:
         if type_ == Type.float:
@@ -52,30 +52,28 @@ class Php3CodeGenerator:
         elif type_ == Type.int:
             return "int"
         elif type_ == Type.str:
-            return "str"
+            return "string"
         else:
             raise NotImplementedError
 
     def _get_declaration_type(self, var: Variable):
-        ctype = self._convert_type(var.type)
-        for _ in range(var.dim_num()):
-            ctype = "List[{}]".format(ctype)
         if var.dim_num():
-            ctype = '"{}"'.format(ctype)
-        return ctype
+            return 'array'
+        else:
+            return self._convert_type(var.type)
 
     def _actual_arguments(self) -> str:
         """
             :return the string form of actual arguments e.g. "N, K, a"
         """
-        return ", ".join([v.name for v in self._format.all_vars()])
+        return "$" + ", $".join([v.name for v in self._format.all_vars()])
 
     def _formal_arguments(self):
         """
             :return the string form of formal arguments e.g. "N: int, K: int, a: List[int]"
         """
         return ", ".join([
-            "{name}: {decl_type}".format(
+            "{decl_type} ${name}".format(
                 decl_type=self._get_declaration_type(v),
                 name=v.name)
             for v in self._format.all_vars()
@@ -113,13 +111,13 @@ class Php3CodeGenerator:
         )
         return line
 
-    def _input_code_for_token(self, type_: Type) -> str:
+    def _input_code_for_token(self, type_: Type, name: str) -> str:
         if type_ == Type.float:
-            return "float(next(tokens))"
+            return "fscanf(STDIN, '%f', ${name});".format(name=name)
         elif type_ == Type.int:
-            return "int(next(tokens))"
+            return "fscanf(STDIN, '%d', ${name});".format(name=name)
         elif type_ == Type.str:
-            return "next(tokens)"
+            return "fscanf(STDIN, '%s', ${name});".format(name=name)
         else:
             raise NotImplementedError
 
@@ -128,26 +126,22 @@ class Php3CodeGenerator:
         var = pattern.all_vars()[0]
 
         if isinstance(pattern, SingularPattern):
-            input_ = self._input_code_for_token(var.type)
+            input_ = self._input_code_for_token(var.type, var.name)
 
         elif isinstance(pattern, ParallelPattern):
-            input_ = "[ {input_} for _ in range({length}) ]".format(
-                input_=self._input_code_for_token(var.type),
-                length=var.first_index.get_length())
+            input_ = "${name} = explode(' ', fgets(STDIN)); // {type_}".format(
+                    name=var.name,
+                    type_=self._get_declaration_type(var))
 
         elif isinstance(pattern, TwoDimensionalPattern):
-            input_ = "[ [ {input_} for _ in range({second_length}) ] for _ in range({first_length}) ]".format(
-                input_=self._input_code_for_token(var.type),
-                first_length=var.first_index.get_length(),
-                second_length=var.second_index.get_length())
+            input_ = "foreach (array_chunk(explode(' ', fgets(STDIN)), 2) as $kv) { ${name}[$kv[0]] = $kv[1]; } // {type_}".format(
+                    name=var.name,
+                    type_=self._get_declaration_type(var))
 
         else:
             raise NotImplementedError
 
-        return "{name} = {input_}  # type: {type_}".format(
-            name=var.name,
-            input_=input_,
-            type_=self._get_declaration_type(var))
+        return input_
 
     @staticmethod
     def _get_var_name(var: Variable):
