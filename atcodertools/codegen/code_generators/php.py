@@ -17,9 +17,10 @@ def _loop_header(var: Variable, for_second_index: bool):
         index = var.first_index
         loop_var = "i"
 
-    return "for {loop_var} in range({length}):".format(
+    return "for (${loop_var} = 0; ${loop_var} < {length}; ${loop_var}++) {open_brace}".format(
         loop_var=loop_var,
-        length=index.get_length()
+        length=index.get_length(),
+        open_brace='{'
     )
 
 
@@ -70,7 +71,7 @@ class Php3CodeGenerator:
 
     def _formal_arguments(self):
         """
-            :return the string form of formal arguments e.g. "N: int, K: int, a: List[int]"
+            :return the string form of formal arguments e.g. "int N, int N, array a"
         """
         return ", ".join([
             "{decl_type} ${name}".format(
@@ -81,43 +82,17 @@ class Php3CodeGenerator:
 
     def _generate_declaration(self, var: Variable):
         """
-        :return: Create declaration part E.g. array[1..n] -> array = [int()] * (n-1+1)  # type: List[int]
+        :return: Create declaration part E.g. array[1..n] -> $array = []
         """
-        if var.dim_num() == 0:
-            dims = []
-        elif var.dim_num() == 1:
-            dims = [var.first_index.get_length()]
-        elif var.dim_num() == 2:
-            dims = [var.first_index.get_length(),
-                    var.second_index.get_length()]
-        else:
-            raise NotImplementedError
+        return "${name} = [];".format(name=var.name)
 
-        ctype = self._convert_type(var.type)
-        if len(dims) == 0:
-            ctor = "{}()".format(ctype)
-        elif len(dims) == 1:
-            ctor = "[{ctype}()] * ({dim})".format(ctype=ctype, dim=dims[0])
-        else:
-            ctor = "[{ctype}()] * ({dim})".format(ctype=ctype, dim=dims[0])
-            for dim in dims[-2::-1]:
-                ctor = "[{ctor} for _ in range({dim})]".format(
-                    ctor=ctor, dim=dim)
-
-        line = "{name} = {constructor}  # type: {decl_type} ".format(
-            name=var.name,
-            decl_type=self._get_declaration_type(var),
-            constructor=ctor
-        )
-        return line
-
-    def _input_code_for_token(self, type_: Type, name: str) -> str:
+    def _input_code_for_token(self, type_: Type) -> str:
         if type_ == Type.float:
-            return "fscanf(STDIN, '%f', ${name});".format(name=name)
+            return "(float)array_shift($inputs);"
         elif type_ == Type.int:
-            return "fscanf(STDIN, '%d', ${name});".format(name=name)
+            return "(int)array_shift($inputs);"
         elif type_ == Type.str:
-            return "fscanf(STDIN, '%s', ${name});".format(name=name)
+            return "(string)array_shift($inputs);"
         else:
             raise NotImplementedError
 
@@ -126,30 +101,32 @@ class Php3CodeGenerator:
         var = pattern.all_vars()[0]
 
         if isinstance(pattern, SingularPattern):
-            input_ = self._input_code_for_token(var.type, var.name)
+            input_ = self._input_code_for_token(var.type)
 
         elif isinstance(pattern, ParallelPattern):
-            input_ = "${name} = explode(' ', fgets(STDIN)); // {type_}".format(
-                    name=var.name,
-                    type_=self._get_declaration_type(var))
+            input_ = "array_map(function($v) { return ({type_})$v; }, array_splice($inputs, 0, {length}));".format(
+                    type_=self._convert_type(var.type),
+                    length=var.first_index.get_length())
 
         elif isinstance(pattern, TwoDimensionalPattern):
-            input_ = "foreach (array_chunk(explode(' ', fgets(STDIN)), 2) as $kv) { ${name}[$kv[0]] = $kv[1]; } // {type_}".format(
-                    name=var.name,
-                    type_=self._get_declaration_type(var))
+            input_ = "foreach (array_chunk(explode(' ', fgets(STDIN)), 2) as $kv) { ${name}[$kv[0]] = $kv[1]; }".format(
+                    name=var.name)
+            return $input_
 
         else:
             raise NotImplementedError
 
-        return input_
+        return "${name} = {input_}".format(
+                name=var.name,
+                input_=input_)
 
     @staticmethod
     def _get_var_name(var: Variable):
         name = var.name
         if var.dim_num() >= 1:
-            name += "[i]"
+            name += "[$i]"
         if var.dim_num() >= 2:
-            name += "[j]"
+            name += "[$j]"
         return name
 
     def _input_code_for_non_single_pattern(self, pattern: Pattern) -> List[str]:
@@ -164,20 +141,21 @@ class Php3CodeGenerator:
         elif isinstance(pattern, ParallelPattern):
             lines.append(_loop_header(representative_var, False))
             for var in pattern.all_vars():
-                lines.append("{indent}{name} = {input_}".format(indent=self._indent(1),
-                                                                name=self._get_var_name(
-                                                                    var),
+                lines.append("{indent}${name} = {input_}".format(indent=self._indent(1),
+                                                                name=self._get_var_name(var),
                                                                 input_=self._input_code_for_token(var.type)))
+            lines.append("}")
 
         elif isinstance(pattern, TwoDimensionalPattern):
             lines.append(_loop_header(representative_var, False))
             lines.append(
-                "{indent}{line}".format(indent=self._indent(1), line=_loop_header(representative_var, True)))
+                "{indent}${line}[]".format(indent=self._indent(1), line=_loop_header(representative_var, True)))
             for var in pattern.all_vars():
-                lines.append("{indent}{name} = {input_}".format(indent=self._indent(2),
+                lines.append("{indent}${name}[] = {input_}".format(indent=self._indent(2),
                                                                 name=self._get_var_name(
                                                                     var),
                                                                 input_=self._input_code_for_token(var.type)))
+            lines.append("}")
 
         else:
             raise NotImplementedError
