@@ -104,14 +104,13 @@ class Php3CodeGenerator:
             input_ = self._input_code_for_token(var.type)
 
         elif isinstance(pattern, ParallelPattern):
-            input_ = "array_map(function($v) { return ({type_})$v; }, array_splice($inputs, 0, {length}));".format(
-                    type_=self._convert_type(var.type),
+            input_ = "array_splice($inputs, 0, {length});".format(
                     length=var.first_index.get_length())
 
         elif isinstance(pattern, TwoDimensionalPattern):
-            input_ = "foreach (array_chunk(explode(' ', fgets(STDIN)), 2) as $kv) { ${name}[$kv[0]] = $kv[1]; }".format(
-                    name=var.name)
-            return $input_
+            input_ = "array_chunk(array_splice($inputs, 0, {first_length} * {second_length}), {second_length});".format(
+                first_length=var.first_index.get_length(),
+                second_length=var.second_index.get_length())
 
         else:
             raise NotImplementedError

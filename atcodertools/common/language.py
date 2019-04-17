@@ -76,8 +76,8 @@ PYTHON = Language(
     default_template_path=get_default_template_path('py'),
 )
 
-PHP7 = Language(
-    name="php7",
+PHP = Language(
+    name="php",
     display_name="PHP7",
     extension="php",
     submission_lang_pattern=re.compile(".*PHP7.*"),
@@ -85,5 +85,5 @@ PHP7 = Language(
     default_template_path=get_default_template_path('php'),
 )
 
-ALL_LANGUAGES = [CPP, JAVA, RUST, PYTHON, PHP7]
+ALL_LANGUAGES = [CPP, JAVA, RUST, PYTHON, PHP]
 ALL_LANGUAGE_NAMES = [lang.display_name for lang in ALL_LANGUAGES]
