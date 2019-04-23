@@ -11,14 +11,19 @@ const YES = "{{ yes_str }}";
 const NO = "{{ no_str }}";
 {% endif %}
 
-function getInputs() {
-    while(($input = fgets(STDIN)) !== false) {
+function genInputs() {
+    while(($input = rtrim(fgets(STDIN))) !== false) {
         foreach (explode(' ', $input) as $v) {
             yield $v;
         }
     }
 }
-$gen = getInputs();
+function getNext(Generator $gen) {
+    $value = $gen->current();
+    $gen->next();
+    return $value;
+}
+$gen = genInputs();
 
 {% if prediction_success %}
 {{ input_part }}

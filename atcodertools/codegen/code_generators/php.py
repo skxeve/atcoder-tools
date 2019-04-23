@@ -56,7 +56,7 @@ class Php7CodeGenerator:
         return "\n{indent}".format(indent=self._indent(0)).join(lines)
 
     def _input_code_for_token(self, type_: Type) -> str:
-        return "({type})$gen->current(); $gen->next();".format(type=self._convert_type(type_))
+        return "({type})getNext($gen);".format(type=self._convert_type(type_))
 
     def _input_code_for_single_pattern(self, pattern: Pattern) -> str:
         assert len(pattern.all_vars()) == 1
@@ -94,7 +94,8 @@ class Php7CodeGenerator:
                 lines.append("{indent}${name} = {input_}".format(indent=self._indent(1),
                                                                 name=var.name,
                                                                 input_=self._input_code_for_token(var.type)))
-            lines.append("{indent}// begin logic".format(indent=self._indent(1)))
+            lines.append("")
+            lines.append("")
             lines.append("}")
 
         elif isinstance(pattern, TwoDimensionalPattern):
@@ -105,7 +106,9 @@ class Php7CodeGenerator:
                 lines.append("{indent}${name} = {input_}".format(indent=self._indent(2),
                                                                 name=var.name,
                                                                 input_=self._input_code_for_token(var.type)))
-            lines.append("{indent}// begin logic".format(indent=self._indent(2)))
+            lines.append("")
+            lines.append("")
+            lines.append("{indent}}".format(indent=self._indent(1)))
             lines.append("}")
 
         else:
