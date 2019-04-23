@@ -17,14 +17,14 @@ def _loop_header(var: Variable, for_second_index: bool):
         index = var.first_index
         loop_var = "i"
 
-    return "for (${loop_var} = 0; ${loop_var} < {length}; ${loop_var}++) {open_brace}".format(
+    return "for (${loop_var} = 0; ${loop_var} < ${length}; ${loop_var}++) {open_brace}".format(
         loop_var=loop_var,
         length=index.get_length(),
         open_brace='{'
     )
 
 
-class Php3CodeGenerator:
+class Php7CodeGenerator:
 
     def __init__(self,
                  format_: Optional[Format[Variable]],
@@ -36,16 +36,8 @@ class Php3CodeGenerator:
         if self._format is None:
             return dict(prediction_success=False)
 
-        return dict(formal_arguments=self._formal_arguments(),
-                    actual_arguments=self._actual_arguments(),
-                    input_part=self._input_part(),
+        return dict(input_part=self._input_part(),
                     prediction_success=True)
-
-    def _input_part(self):
-        lines = []
-        for pattern in self._format.sequence:
-            lines += self._render_pattern(pattern)
-        return "\n{indent}".format(indent=self._indent(0)).join(lines)
 
     def _convert_type(self, type_: Type) -> str:
         if type_ == Type.float:
@@ -57,44 +49,14 @@ class Php3CodeGenerator:
         else:
             raise NotImplementedError
 
-    def _get_declaration_type(self, var: Variable):
-        if var.dim_num():
-            return 'array'
-        else:
-            return self._convert_type(var.type)
-
-    def _actual_arguments(self) -> str:
-        """
-            :return the string form of actual arguments e.g. "N, K, a"
-        """
-        return "$" + ", $".join([v.name for v in self._format.all_vars()])
-
-    def _formal_arguments(self):
-        """
-            :return the string form of formal arguments e.g. "int N, int N, array a"
-        """
-        return ", ".join([
-            "{decl_type} ${name}".format(
-                decl_type=self._get_declaration_type(v),
-                name=v.name)
-            for v in self._format.all_vars()
-        ])
-
-    def _generate_declaration(self, var: Variable):
-        """
-        :return: Create declaration part E.g. array[1..n] -> $array = []
-        """
-        return "${name} = [];".format(name=var.name)
+    def _input_part(self):
+        lines = []
+        for pattern in self._format.sequence:
+            lines += self._render_pattern(pattern)
+        return "\n{indent}".format(indent=self._indent(0)).join(lines)
 
     def _input_code_for_token(self, type_: Type) -> str:
-        if type_ == Type.float:
-            return "(float)array_shift($inputs);"
-        elif type_ == Type.int:
-            return "(int)array_shift($inputs);"
-        elif type_ == Type.str:
-            return "(string)array_shift($inputs);"
-        else:
-            raise NotImplementedError
+        return "({type})$gen->current(); $gen->next();".format(type=self._convert_type(type_))
 
     def _input_code_for_single_pattern(self, pattern: Pattern) -> str:
         assert len(pattern.all_vars()) == 1
@@ -104,11 +66,11 @@ class Php3CodeGenerator:
             input_ = self._input_code_for_token(var.type)
 
         elif isinstance(pattern, ParallelPattern):
-            input_ = "array_splice($inputs, 0, {length});".format(
+            input_ = "array_splice(iterator_to_array($gen), 0, {length});".format(
                     length=var.first_index.get_length())
 
         elif isinstance(pattern, TwoDimensionalPattern):
-            input_ = "array_chunk(array_splice($inputs, 0, {first_length} * {second_length}), {second_length});".format(
+            input_ = "array_chunk(array_splice(iterator_to_array($gen), 0, {first_length} * {second_length}), {second_length});".format(
                 first_length=var.first_index.get_length(),
                 second_length=var.second_index.get_length())
 
@@ -119,19 +81,8 @@ class Php3CodeGenerator:
                 name=var.name,
                 input_=input_)
 
-    @staticmethod
-    def _get_var_name(var: Variable):
-        name = var.name
-        if var.dim_num() >= 1:
-            name += "[$i]"
-        if var.dim_num() >= 2:
-            name += "[$j]"
-        return name
-
     def _input_code_for_non_single_pattern(self, pattern: Pattern) -> List[str]:
         lines = []
-        for var in pattern.all_vars():
-            lines.append(self._generate_declaration(var))
         representative_var = pattern.all_vars()[0]
 
         if isinstance(pattern, SingularPattern):
@@ -141,8 +92,9 @@ class Php3CodeGenerator:
             lines.append(_loop_header(representative_var, False))
             for var in pattern.all_vars():
                 lines.append("{indent}${name} = {input_}".format(indent=self._indent(1),
-                                                                name=self._get_var_name(var),
+                                                                name=var.name,
                                                                 input_=self._input_code_for_token(var.type)))
+            lines.append("{indent}// begin logic".format(indent=self._indent(1)))
             lines.append("}")
 
         elif isinstance(pattern, TwoDimensionalPattern):
@@ -150,10 +102,10 @@ class Php3CodeGenerator:
             lines.append(
                 "{indent}${line}[]".format(indent=self._indent(1), line=_loop_header(representative_var, True)))
             for var in pattern.all_vars():
-                lines.append("{indent}${name}[] = {input_}".format(indent=self._indent(2),
-                                                                name=self._get_var_name(
-                                                                    var),
+                lines.append("{indent}${name} = {input_}".format(indent=self._indent(2),
+                                                                name=var.name,
                                                                 input_=self._input_code_for_token(var.type)))
+            lines.append("{indent}// begin logic".format(indent=self._indent(2)))
             lines.append("}")
 
         else:
@@ -171,7 +123,7 @@ class Php3CodeGenerator:
 
 
 def main(args: CodeGenArgs) -> str:
-    code_parameters = Php3CodeGenerator(
+    code_parameters = Php7CodeGenerator(
         args.format, args.config).generate_parameters()
     return render(
         args.template,

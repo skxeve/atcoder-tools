@@ -10,17 +10,18 @@ const YES = "{{ yes_str }}";
 {% if no_str %}
 const NO = "{{ no_str }}";
 {% endif %}
-{% if prediction_success %}
-function solve({{ formal_arguments }})
-{
-}
 
-$inputs = [];
-while (($item = fgets(STDIN)) !== false) {
-    $inputs = array_merge($inputs, explode(' ', $item));
+function getInputs() {
+    while(($input = fgets(STDIN)) !== false) {
+        foreach (explode(' ', $input) as $v) {
+            yield $v;
+        }
+    }
 }
+$gen = getInputs();
+
+{% if prediction_success %}
 {{ input_part }}
-solve({{ actual_arguments }});
 {% else %}
 // Failed to predict input format
 {% endif %}
