@@ -18,7 +18,7 @@ function genInputs() {
         }
     }
 }
-function getNext(Generator $gen) {
+function getNext($gen) {
     $value = $gen->current();
     $gen->next();
     return $value;
