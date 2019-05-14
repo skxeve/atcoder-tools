@@ -58,35 +58,14 @@ class Php7CodeGenerator:
     def _input_code_for_token(self, type_: Type) -> str:
         return "({type})getNext($gen);".format(type=self._convert_type(type_))
 
-    def _input_code_for_single_pattern(self, pattern: Pattern) -> str:
-        assert len(pattern.all_vars()) == 1
-        var = pattern.all_vars()[0]
-
-        if isinstance(pattern, SingularPattern):
-            input_ = self._input_code_for_token(var.type)
-
-        elif isinstance(pattern, ParallelPattern):
-            input_ = "array_splice(iterator_to_array($gen), 0, {length});".format(
-                    length=var.first_index.get_length())
-
-        elif isinstance(pattern, TwoDimensionalPattern):
-            input_ = "array_chunk(array_splice(iterator_to_array($gen), 0, {first_length} * {second_length}), {second_length});".format(
-                first_length=var.first_index.get_length(),
-                second_length=var.second_index.get_length())
-
-        else:
-            raise NotImplementedError
-
-        return "${name} = {input_}".format(
-                name=var.name,
-                input_=input_)
-
-    def _input_code_for_non_single_pattern(self, pattern: Pattern) -> List[str]:
+    def _input_code_for_whole_pattern(self, pattern: Pattern) -> List[str]:
         lines = []
         representative_var = pattern.all_vars()[0]
 
         if isinstance(pattern, SingularPattern):
-            assert False
+            lines.append("${name} = {input_}".format(
+                name=representative_var.name,
+                input_=self._input_code_for_token(representative_var.type)))
 
         elif isinstance(pattern, ParallelPattern):
             lines.append(_loop_header(representative_var, False))
@@ -116,10 +95,7 @@ class Php7CodeGenerator:
         return lines
 
     def _render_pattern(self, pattern: Pattern):
-        if len(pattern.all_vars()) == 1:
-            return [self._input_code_for_single_pattern(pattern)]
-        else:
-            return self._input_code_for_non_single_pattern(pattern)
+        return self._input_code_for_whole_pattern(pattern)
 
     def _indent(self, depth):
         return self._config.indent(depth)
